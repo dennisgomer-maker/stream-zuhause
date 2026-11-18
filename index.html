@@ -72,7 +72,7 @@ body { font-family: "Segoe UI", Roboto, Arial, sans-serif; color:#e9ecf1; }
   background:#121722; border-radius:24px; box-shadow:0 30px 80px rgba(0,0,0,.6); }
 #ov-title { position:absolute; left:60px; top:50px; right:60px; font-size:48px; font-weight:600; }
 #ov-meta { position:absolute; left:60px; top:120px; right:60px; font-size:24px; color:#8e98aa; }
-#ov-text { position:absolute; left:60px; top:180px; right:60px; bottom:150px; overflow:hidden; word-wrap:break-word; font-size:26px; line-height:1.45; color:#cdd4df; }
+#ov-text { position:absolute; left:60px; top:130px; right:60px; bottom:130px; overflow:hidden; word-wrap:break-word; font-size:21px; line-height:1.45; color:#cdd4df; }
 #ov-actions { position:absolute; left:60px; bottom:50px; right:60px; white-space:nowrap; }
 .btn { display:inline-block; margin-right:22px; padding:0 34px; height:72px; line-height:72px;
   border-radius:14px; background:#1d2534; text-decoration:none; outline:none; font-size:24px; font-weight:600; color:#e9ecf1; }
@@ -223,6 +223,7 @@ var KEY = {
   BACK:  [8, 27, 461, 10009, 166, "Backspace", "Escape", "Back", "GoBack", "BrowserBack"],
   DIAG:  [48, 96, 406, "0", "ColorF3Blue"],
   INST:  [49, 97, "1"],
+  UNINST:[51, 99, "3"],
   DOWN5: [50, 98, "2"]
 };
 function keyAction(e) {
@@ -575,7 +576,13 @@ function installTile() {
   var list = found.list, tpl = list[list.length - 1];
   for (var i = 0; i < list.length; i++) {
     var j = JSON.stringify(list[i]);
-    if (j.indexOf(MY_URL) >= 0 || /stream zuhause/i.test(j)) return info("Schon installiert", "Stream Zuhause steht bereits in der App-Liste. Ggf. den Fernseher einmal neu starten.");
+    if (j.indexOf(MY_URL) >= 0 || /stream zuhause/i.test(j)) {
+      var other = list[i === 0 ? 1 : 0], webApp = null;
+      for (var w = 0; w < list.length; w++) if (w !== i && /http/i.test(JSON.stringify(list[w]))) { webApp = list[w]; break; }
+      return info("Schon installiert (" + list.length + " Apps in der Liste, unsere an Stelle " + (i + 1) + ")",
+        "UNSER EINTRAG:\n" + j.slice(0, 700) + "\n\nANDERE APP ZUM VERGLEICH:\n" + JSON.stringify(webApp || other).slice(0, 700) +
+        "\n\nTaste 3 = unseren Eintrag wieder entfernen");
+    }
   }
   try { localStorage.setItem("sz_appinfo_backup", txt); } catch (e) {}
   var entry = JSON.parse(JSON.stringify(tpl));
@@ -593,6 +600,15 @@ function installTile() {
   catch (e) { return info("Schreiben fehlgeschlagen", e.message); }
   info("Installation abgeschickt", "Antwort des TVs: " + String(JSON.stringify(res)).slice(0, 300) +
     "\n\nJetzt den Fernseher einmal komplett neu starten (Netzstecker 10 Sek. ziehen). Danach steht „Stream Zuhause“ am Ende der App-Liste.\n\nNeuer Eintrag: " + JSON.stringify(entry).slice(0, 300));
+}
+function removeTile() {
+  var raw = hiu("fileRead", { path: APPINFO, mode: 6 }), txt = hiuText(raw), data, found;
+  try { data = JSON.parse(txt); found = findList(data); } catch (e) { return info("Fehler", "App-Liste nicht lesbar"); }
+  var before = found.list.length;
+  for (var i = found.list.length - 1; i >= 0; i--) { var j = JSON.stringify(found.list[i]);
+    if (j.indexOf(MY_URL) >= 0 || /stream zuhause/i.test(j)) found.list.splice(i, 1); }
+  var res = hiu("fileWrite", { path: APPINFO, mode: 6, writedata: JSON.stringify(data) });
+  info("Eintrag entfernt", (before - found.list.length) + " Eintrag/Einträge entfernt. Antwort: " + String(JSON.stringify(res)).slice(0, 200));
 }
 function restoreTile() {
   var b = null; try { b = localStorage.getItem("sz_appinfo_backup"); } catch (e) {}
@@ -714,11 +730,13 @@ function handleKey(e, type) {
     else if (act === "RIGHT" && ovIdx < ovButtons.length - 1) ovIdx++;
     else if (act === "OK") return ovButtons[ovIdx]._ok();
     else if (act === "BACK") return closeOverlay();
+    else if (act === "UNINST") { closeOverlay(); return removeTile(); }
     return renderOverlay();
   }
   if (act === "OK") { var row = rows[rowIdx]; return row.items[row.col]._ok(); }
   if (act === "DIAG") return openDiag();
   if (act === "INST") return installTile();
+  if (act === "UNINST") return removeTile();
   if (act === "DOWN5") { rowIdx = rows.length - 1; rows[rowIdx].col = 0; return render(); }
   if (act === "BACK") return; // Startseite: Zurück ignorieren
   move(act);
