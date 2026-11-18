@@ -17,6 +17,9 @@ body { font-family: "Segoe UI", Roboto, Arial, sans-serif; color:#e9ecf1; }
 #brand span { color:#4f8cff; }
 #clock { position:absolute; right:0; top:0; font-size:44px; font-weight:300; color:#cfd6e2; }
 #date { position:absolute; right:0; top:54px; font-size:22px; color:#7d8799; }
+.hbtn { position:absolute; top:10px; padding:0 22px; height:52px; line-height:52px; border-radius:12px;
+  background:#1d2534; color:#e9ecf1; font-size:20px; text-decoration:none; outline:none; }
+.hbtn:hover { background:#ffffff; color:#0b0d12; }
 
 #viewport { position:absolute; left:0; right:0; top:160px; bottom:0; overflow:hidden; }
 #rows { position:absolute; left:0; right:0; top:0;
@@ -104,6 +107,8 @@ body { font-family: "Segoe UI", Roboto, Arial, sans-serif; color:#e9ecf1; }
     <div id="brand">Stream <span>Zuhause</span></div>
     <div id="clock">--:--</div>
     <div id="date"></div>
+    <a href="#" id="hbtn-install" class="hbtn" style="right:300px">App installieren (Taste 1)</a>
+    <a href="#" id="hbtn-diag" class="hbtn" style="right:640px">Diagnose (Taste 0)</a>
   </div>
   <div id="viewport"><div id="rows"></div></div>
 
@@ -216,7 +221,9 @@ var KEY = {
   DOWN:  [40, 20, 65364, "ArrowDown", "Down"],
   OK:    [13, 23, 66, 65293, "Enter", "Accept", "Select"],
   BACK:  [8, 27, 461, 10009, 166, "Backspace", "Escape", "Back", "GoBack", "BrowserBack"],
-  DIAG:  [48, 96, 406, "0", "ColorF3Blue"]
+  DIAG:  [48, 96, 406, "0", "ColorF3Blue"],
+  INST:  [49, 97, "1"],
+  DOWN5: [50, 98, "2"]
 };
 function keyAction(e) {
   var c = e.keyCode || e.which || 0, k = e.key || "", n;
@@ -259,9 +266,19 @@ function addItem(row, html, cls, onOk) {
     rowIdx = ri; row.col = ci; render(); onOk(); return false; };
   // Zeigermodus des TV-Browsers: Hinzeigen markiert die Kachel
   a.onmouseover = function () { var ri = rows.indexOf(row), ci = row.items.indexOf(a);
-    if (mode === "home" && (ri !== rowIdx || ci !== row.col)) { rowIdx = ri; row.col = ci; markFocus(); } };
+    if (mode === "home" && (ri !== rowIdx || ci !== row.col)) { rowIdx = ri; row.col = ci; markFocus(); scrollRowIntoView(); } };
   row.track.appendChild(a);
   row.items.push(a);
+}
+function scrollRowIntoView() {
+  var row = rows[rowIdx], rowsEl = document.getElementById("rows"), vh = 1080 - 160 - 40;
+  var top = row.el.offsetTop, h = row.el.offsetHeight, cur = rowsEl._y || 0;
+  if (top + h + cur > vh) cur = vh - top - h;
+  if (top + cur < 0) cur = -top;
+  if (rowIdx === 0) cur = 0;
+  // nächste Reihe anteilig mit einblenden, damit man mit dem Zeiger weiter nach unten kommt
+  if (rowIdx < rows.length - 1 && top + h + cur > vh - 160) cur = Math.max(vh - top - h - 160, -top);
+  rowsEl._y = cur; setY(rowsEl, cur);
 }
 function markFocus() {
   for (var r = 0; r < rows.length; r++) for (var i = 0; i < rows[r].items.length; i++)
@@ -701,6 +718,8 @@ function handleKey(e, type) {
   }
   if (act === "OK") { var row = rows[rowIdx]; return row.items[row.col]._ok(); }
   if (act === "DIAG") return openDiag();
+  if (act === "INST") return installTile();
+  if (act === "DOWN5") { rowIdx = rows.length - 1; rows[rowIdx].col = 0; return render(); }
   if (act === "BACK") return; // Startseite: Zurück ignorieren
   move(act);
 }
@@ -730,6 +749,8 @@ function tick() { var d = new Date(), p = function (n) { return (n < 10 ? "0" : 
   document.getElementById("date").innerHTML = tage[d.getDay()] + ", " + d.getDate() + ". " + mon[d.getMonth()]; }
 
 build(); loadState(); fit(); tick(); render();
+document.getElementById("hbtn-install").onclick = function (e) { e.preventDefault(); installTile(); return false; };
+document.getElementById("hbtn-diag").onclick = function (e) { e.preventDefault(); openDiag(); return false; };
 loadMeine(); loadSerien(); loadFilme();
 setInterval(function () { if (mode === "home") { loadSerien(); } }, 3 * 3600000);
 window.addEventListener("resize", fit);
